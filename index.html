@@ -125,7 +125,7 @@ const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const man=n=>{const a=Math.abs(n);return (n<0?'−':'+')+(a>=1e4?(Math.round(a/1e3)/10).toLocaleString('ja-JP')+'万人':Math.round(a).toLocaleString('ja-JP')+'人')};
 
 const $=id=>document.getElementById(id);
-// ---- 桁ロール（常に前進：9→0も上方向へ進む） ----
+// ---- 桁ロール（増加は前進・減少は逆回転） ----
 function Roller(el){this.el=el;this.cols=[];this.pos=[];this.str=''}
 Roller.prototype.set=function(s){
  if(s.length!==this.str.length){
@@ -133,7 +133,7 @@ Roller.prototype.set=function(s){
   for(const ch of s){
    if(ch>='0'&&ch<='9'){const g=document.createElement('span');g.className='dg';const c=document.createElement('span');
     for(let k=0;k<20;k++){const i=document.createElement('i');i.textContent=k%10;c.appendChild(i)}
-    c.addEventListener('transitionend',()=>{const j=this.cols.indexOf(c);if(j>=0&&this.pos[j]>=10)this._snap(j)});
+    c.addEventListener('transitionend',()=>{const j=this.cols.indexOf(c);if(j>=0&&this.pos[j]>=10)this._snap(j,this.pos[j]-10)});
     g.appendChild(c);r.appendChild(g);this.cols.push(c)}
    else{const c=document.createElement('span');c.className='cm';c.textContent=ch;r.appendChild(c);this.cols.push(null)}
    this.pos.push(0);
@@ -142,15 +142,18 @@ Roller.prototype.set=function(s){
   for(let k=0;k<s.length;k++)if(this.cols[k]){this.pos[k]=10;this._snap(k,+s[k])}
   this.str=s;fitAll();return;
  }
+ const up=BigInt(s.replace(/\D/g,'')||'0')>=BigInt(this.str.replace(/\D/g,'')||'0');
  for(let k=0;k<s.length;k++){
   const c=this.cols[k];if(!c||s[k]===this.str[k])continue;
-  if(this.pos[k]>=10)this._snap(k);
-  const d=+s[k];const t=d>this.pos[k]?d:d+10; // 小さくなる時は次周の同じ数字へ前進
+  if(this.pos[k]>=10)this._snap(k,this.pos[k]-10);
+  const d=+s[k],p=this.pos[k];let t;
+  if(up){t=d>p?d:d+10} // 増加：前進
+  else{this._snap(k,p+10);t=d<p?d+10:d} // 減少：逆回転
   this.pos[k]=t;c.style.transform='translateY(-'+(t*1.1)+'em)';
  }
  this.str=s;
 };
-Roller.prototype._snap=function(k,d){const c=this.cols[k];const p=d!==undefined?d:this.pos[k]-10;this.pos[k]=p;
+Roller.prototype._snap=function(k,d){const c=this.cols[k];const p=d!==undefined?d:this.pos[k]%10;this.pos[k]=p;
  c.classList.add('nt');c.style.transform='translateY(-'+(p*1.1)+'em)';void c.offsetHeight;c.classList.remove('nt')};
 // ---- 画面幅に合わせて文字サイズを決める ----
 function fitEl(el,w,h){if(!el.firstChild)return;el.style.fontSize='100px';const r=el.firstChild.getBoundingClientRect();if(!r.width)return;
