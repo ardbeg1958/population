@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070b14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="人口時計">
+<meta name="application-name" content="人口時計">
+<meta name="description" content="世界と日本の推計人口が、いまこの瞬間も刻々と変わってゆく様子を眺める鑑賞用アプリ。">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>人口時計</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#070b14;color:#e8ecf4;overflow:hidden;font-family:-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;user-select:none;-webkit-user-select:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#ui{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 54px) calc(env(safe-area-inset-right) + 16px) calc(env(safe-area-inset-bottom) + 14px) calc(env(safe-area-inset-left) + 16px);pointer-events:none}
+.card{pointer-events:auto;background:rgba(10,16,30,.42);border:1px solid rgba(160,190,255,.12);border-radius:16px;padding:12px 16px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.ttl{font-size:13px;letter-spacing:.15em;color:#9fb3d8}
+.big{font-variant-numeric:tabular-nums;font-weight:200;line-height:1.1;white-space:nowrap}
+#world .big{font-size:clamp(30px,9.2vw,64px);color:#fff}
+.jp .big{font-size:clamp(22px,6.4vw,40px)}
+.sub{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-size:12.5px;color:#b8c4dc}
+.sub b{font-weight:500;font-variant-numeric:tabular-nums;color:#fff}
+.b{color:#ffd98a!important}.d{color:#9cc4ff!important}.u{color:#a8f0c0!important}.m{color:#ffb0a8!important}
+#jpbox{display:flex;flex-direction:column;gap:10px}
+.roll{display:inline-flex;overflow:hidden;height:1.1em;vertical-align:bottom}
+.dg{display:inline-block;height:1.1em;overflow:hidden}
+.dg span{display:flex;flex-direction:column;transition:transform .6s cubic-bezier(.3,.7,.2,1)}
+.dg span i{font-style:normal;height:1.1em;display:block;text-align:center}
+.cm{display:inline-block}
+.area{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(160,190,255,.12);font-size:11.5px;color:#9fb3d8}
+.area b{font-weight:500;font-variant-numeric:tabular-nums;color:#d8f0e0}
+.area .lb{color:#8fd0a8}
+#bar{position:fixed;right:calc(env(safe-area-inset-right) + 12px);top:calc(env(safe-area-inset-top) + 12px);display:flex;gap:8px;pointer-events:auto;z-index:3}
+#bar button{background:rgba(20,30,50,.5);color:#cfe0ff;border:1px solid rgba(160,190,255,.22);border-radius:20px;padding:6px 12px;font-size:13px}
+#info{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:5;padding:20px}
+#info .in{max-width:560px;max-height:85vh;overflow:auto;background:#0e1628;border:1px solid rgba(160,190,255,.25);border-radius:16px;padding:18px 20px;font-size:13.5px;line-height:1.7;color:#d6def0}
+#info h2{font-size:16px;margin-bottom:8px;color:#fff}#info h3{font-size:14px;margin:12px 0 2px;color:#ffd98a}
+#info a{color:#9cc4ff;word-break:break-all}#info .x{margin-top:14px;width:100%;padding:8px;border-radius:10px;background:#22304e;color:#fff;border:0;font-size:14px}
+@media (orientation:landscape) and (max-height:560px){
+ #ui{flex-direction:row;align-items:flex-end}
+ #ui{padding-top:calc(env(safe-area-inset-top) + 14px)} #world{align-self:flex-start;margin-top:40px}
+ #world .big{font-size:clamp(28px,5.6vw,56px)}
+ .jp .big{font-size:clamp(18px,3.6vw,32px)}
+ #jpbox{width:min(46vw,440px)}
+}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="bar"><button id="snd">音 オフ</button><button id="inf">この数字について</button></div>
+<div id="ui">
+ <div id="world" class="card">
+  <div class="ttl">世界の推計人口</div>
+  <div class="big" id="wPop"></div>
+  <div class="sub"><span>今日の出生 <b class="b" id="wB">0</b></span><span>今日の死亡 <b class="d" id="wD">0</b></span><span>今年の増加 <b class="u" id="wY">0</b></span></div>
+  <div class="area"><span class="lb">居住可能面積 約1億400万km²</span><span>1km²あたり <b id="wDen"></b></span><span>1人あたり <b id="wPer"></b></span></div>
+ </div>
+ <div id="jpbox">
+  <div class="card jp">
+   <div class="ttl">日本の総人口（外国人を含む）</div>
+   <div class="big" id="jPop"></div>
+   <div class="sub"><span>1年あたり <b class="m" id="jR"></b></span><span>今年の減少 <b class="m" id="jY"></b></span></div>
+   <div class="area"><span class="lb">可住地面積 12万2,634km²</span><span>1km²あたり <b id="jDen"></b></span><span>1人あたり <b id="jPer"></b></span></div>
+  </div>
+  <div class="card jp">
+   <div class="ttl">日本人人口</div>
+   <div class="big" id="nPop"></div>
+   <div class="sub"><span>今日の出生 <b class="b" id="nB">0</b></span><span>今日の死亡 <b class="d" id="nD">0</b></span><span>1年あたり <b class="m" id="nR"></b></span></div>
+  </div>
+ </div>
+</div>
+<div id="info"><div class="in">
+<h2>この数字について</h2>
+<p>表示している人口は、公的な推計値をもとに「一定のペースで増減する」と仮定して計算した<b>推定値</b>です。実際に数えた人数ではありません。日付の区切り（今日・今年）は日本時間です。</p>
+<h3>世界人口</h3>
+<p>国連「World Population Prospects 2024」中位推計。2026年7月1日の世界人口 8,300,678,395人、年間増加 69,065,325人（年0.84％）を基準に計算。出生 約1億3200万人/年・死亡 約6300万人/年（同推計の概数）。<br>
+<a href="https://population.un.org/wpp" target="_blank">population.un.org/wpp</a><br>
+（数値の確認：<a href="https://www.worldometers.info/world-population/" target="_blank">worldometers.info（国連WPP2024に基づく）</a>）</p>
+<h3>日本の総人口</h3>
+<p>総務省統計局「人口推計」2026年10月1日現在（概算値）1億2269万人。前年同月比 −53万人（−0.43％）のペースで計算。<br>
+<a href="https://www.stat.go.jp/data/jinsui/new.html" target="_blank">stat.go.jp/data/jinsui/new.html</a>（2026年10月20日公表）</p>
+<h3>日本人人口</h3>
+<p>同「人口推計」2026年5月1日現在（確定値）1億1883万8千人。前年同月比 −85万5千人（−0.71％）のペースで計算。</p>
+<h3>日本人の出生・死亡</h3>
+<p>厚生労働省「人口動態統計」令和7（2025）年確定数：出生 671,270人（約47秒に1人）、死亡 1,589,533人（約20秒に1人）。日本における日本人。<br>
+<a href="https://www.mhlw.go.jp/toukei/saikin/hw/jinkou/kakutei25/dl/05_gaikyouR07.pdf" target="_blank">mhlw.go.jp 人口動態統計（確定数）の概況</a></p>
+<h3>居住可能面積（世界）</h3>
+<p>約1億400万km²。陸地 約1億4900万km² から、氷河（約1500万km²）と砂漠・岩場などの不毛地（約2800万km²）を除いた面積で、森林や草原・農地・都市を含みます。国連食糧農業機関（FAO）の統計をもとに Our World in Data がまとめた値です（国連環境計画 GEO-6、国連砂漠化対処条約「Land in Numbers 2019」も同じ値を掲載）。なお Our World in Data の2024年改訂版の記事は「氷河10％・不毛地14％」としており、この割合だと約1億1000万km²になります。<br>
+<a href="https://ourworldindata.org/global-land-for-agriculture" target="_blank">ourworldindata.org/global-land-for-agriculture</a><br>
+<a href="https://www.unccd.int/sites/default/files/library/1202_Land%20in%20numbers_2final-new-web.pdf" target="_blank">UNCCD「Land in Numbers 2019」</a></p>
+<h3>可住地面積（日本）</h3>
+<p>122,633.98km²（2024年）。総務省統計局「社会生活統計指標」「統計でみる市区町村のすがた」の可住地面積で、総面積（北方地域・竹島を除く 372,970.63km²）から<b>林野面積と主要湖沼面積を差し引いた</b>もの。総面積の約33％です。北方地域・竹島を含む国土面積は 377,975.64km²（国土地理院「全国都道府県市区町村別面積調」2024年10月1日）。人口は外国人を含む総人口で割っています。<br>
+<a href="https://www.stat.go.jp/library/faq/faq01/faq01a03.html" target="_blank">統計局 統計FAQ「可住地面積」</a><br>
+<a href="https://www.gsi.go.jp/KOKUJYOHO/MENCHO-title.htm" target="_blank">国土地理院 面積調</a></p>
+<h3>定義の違いに注意</h3>
+<p>世界の「居住可能面積」は<b>森林を含みます</b>が、日本の「可住地面積」は<b>森林（林野）を含みません</b>。日本は国土の約3分の2が森林のため、同じ物差しで比べると日本の「1km²あたりの人数」は大きく、「1人あたりの面積」は小さく出ます。目安として眺めてください。</p>
+<h3>画面の光</h3>
+<p>地球の上に灯る金色の光は世界のどこかでの誕生、静かに消えてゆく青い光は死亡を表します（実際のペースに合わせていますが、場所は架空です）。日本の上の大きな光は日本人の誕生です。音をオンにすると、日本で赤ちゃんが生まれるたびにやさしいチャイムが鳴ります。</p>
+<p style="margin-top:10px;color:#8ea0c0">統計の更新があっても自動では反映されません。</p>
+<button class="x" id="cls">とじる</button>
+</div></div>
+<script>
+(()=>{
+const KEY='population_v1';
+let st={sound:false};try{Object.assign(st,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+const YEAR=365.2425*86400e3;
+const jst=(y,m,d)=>Date.UTC(y,m-1,d)-9*3600e3;
+// ---- 基準値（出典は「この数字について」） ----
+const W={base:8300678395,t:jst(2026,7,1),grow:69065325,births:132e6,deaths:63e6};
+const J={base:122690000,t:jst(2026,10,1),grow:-530000};
+const AREA={w:104e6,j:122633.98};// km²
+const N={base:118838000,t:jst(2026,5,1),grow:-855000,births:671270,deaths:1589533};
+const now=()=>Date.now();
+const jstParts=t=>{const d=new Date(t+9*3600e3);return{y:d.getUTCFullYear(),m:d.getUTCMonth()+1,d:d.getUTCDate()}};
+const midnight=t=>{const p=jstParts(t);return jst(p.y,p.m,p.d)};
+const yearStart=t=>jst(jstParts(t).y,1,1);
+const pop=(o,t)=>o.base+o.grow*(t-o.t)/YEAR;
+const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
+const man=n=>{const a=Math.abs(n);return (n<0?'−':'+')+(a>=1e4?(Math.round(a/1e3)/10).toLocaleString('ja-JP')+'万人':Math.round(a).toLocaleString('ja-JP')+'人')};
+
+// ---- 桁ロール ----
+function Roller(el){this.el=el;this.cols=[];this.str=''}
+Roller.prototype.set=function(s){
+ if(s.length!==this.str.length){
+  this.el.innerHTML='';this.cols=[];const r=document.createElement('span');r.className='roll';
+  for(const ch of s){
+   if(ch>='0'&&ch<='9'){const g=document.createElement('span');g.className='dg';const c=document.createElement('span');
+    for(let k=0;k<10;k++){const i=document.createElement('i');i.textContent=k;c.appendChild(i)}
+    g.appendChild(c);r.appendChild(g);this.cols.push(c)}
+   else{const c=document.createElement('span');c.className='cm';c.textContent=ch;r.appendChild(c);this.cols.push(null)}
+  }
+  this.el.appendChild(r);this.str='';
+ }
+ for(let k=0;k<s.length;k++){if(s[k]!==this.str[k]&&this.cols[k])this.cols[k].style.transform='translateY(-'+(+s[k]*1.1)+'em)'}
+ this.str=s;
+};
+const rW=new Roller(document.getElementById('wPop')),rJ=new Roller(document.getElementById('jPop')),rN=new Roller(document.getElementById('nPop'));
+const $=id=>document.getElementById(id);
+$('jR').textContent=man(J.grow);$('nR').textContent=man(N.grow);
+
+// ---- 音 ----
+let ac=null;
+function ensureAC(){if(!ac){const C=window.AudioContext||window.webkitAudioContext;if(C)ac=new C()}if(ac&&ac.state==='suspended')ac.resume()}
+function chime(){
+ if(!st.sound||!ac)return;const t=ac.currentTime;
+ [[659.25,0],[987.77,.18],[1318.5,.36]].forEach(([f,dt])=>{
+  const o=ac.createOscillator(),o2=ac.createOscillator(),g=ac.createGain();
+  o.type='sine';o.frequency.value=f;o2.type='triangle';o2.frequency.value=f*2;
+  g.gain.setValueAtTime(0,t+dt);g.gain.linearRampToValueAtTime(.07,t+dt+.02);g.gain.exponentialRampToValueAtTime(.0001,t+dt+2.2);
+  o.connect(g);o2.connect(g);g.connect(ac.destination);o.start(t+dt);o2.start(t+dt);o.stop(t+dt+2.3);o2.stop(t+dt+2.3)});
+}
+function softLow(){
+ if(!st.sound||!ac)return;const t=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();
+ o.type='sine';o.frequency.value=196;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.025,t+.4);g.gain.exponentialRampToValueAtTime(.0001,t+3);
+ o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+3.1);
+}
+const sb=$('snd');const sl=()=>sb.textContent=st.sound?'音 オン':'音 オフ';sl();
+sb.onclick=()=>{st.sound=!st.sound;save();sl();if(st.sound){ensureAC();chime()}};
+$('inf').onclick=()=>$('info').style.display='flex';
+$('cls').onclick=()=>$('info').style.display='none';
+$('info').onclick=e=>{if(e.target.id==='info')$('info').style.display='none'};
+
+// ---- 背景：地球と光 ----
+const cv=$('cv'),cx=cv.getContext('2d');let Wd,Ht,dpr,R,GX,GY;
+function rs(){dpr=Math.min(2,devicePixelRatio||1);Wd=innerWidth;Ht=innerHeight;cv.width=Wd*dpr;cv.height=Ht*dpr;cx.setTransform(dpr,0,0,dpr,0,0);
+ const land=Wd>Ht;R=Math.min(Wd,Ht)*(land?.33:.40);GX=land?Wd*.27:Wd*.5;GY=land?Ht*.70:Ht*.52}
+addEventListener('resize',rs);rs();
+// 球面の点（フィボナッチ格子）
+const PTS=[];const NP=900;for(let i=0;i<NP;i++){const y=1-2*(i+.5)/NP,r=Math.sqrt(1-y*y),a=i*2.39996;PTS.push([Math.cos(a)*r,y,Math.sin(a)*r])}
+const stars=[];for(let i=0;i<140;i++)stars.push([Math.random(),Math.random(),Math.random()*1.2+.2,Math.random()*6.28]);
+const JPN=[36*Math.PI/180,138*Math.PI/180];// 緯度経度
+let rot=0,tilt=.35;
+function proj(lat,lon){const x=Math.cos(lat)*Math.sin(lon+rot),y=Math.sin(lat),z=Math.cos(lat)*Math.cos(lon+rot);
+ const y2=y*Math.cos(tilt)-z*Math.sin(tilt),z2=y*Math.sin(tilt)+z*Math.cos(tilt);return[GX+x*R,GY-y2*R,z2]}
+const lights=[];const MAXL=260;
+function addLight(kind){if(lights.length>MAXL)lights.shift();
+ const lat=Math.asin(Math.random()*1.7-.85),lon=Math.random()*6.283;lights.push({lat,lon,kind,t:0,life:kind==='b'?6:5})}
+let jpGlow=[];
+// イベント発生（実際のペースに合わせ、ポアソン的に）
+let lastT=now();const acc={wb:0,wd:0,nb:0,nd:0};
+const rate={wb:W.births/YEAR,wd:W.deaths/YEAR,nb:N.births/YEAR,nd:N.deaths/YEAR};
+let lastRoll=0;
+function tick(){
+ const t=now(),dt=Math.min(1000,t-lastT);lastT=t;
+ for(const k in acc){acc[k]+=rate[k]*dt;while(acc[k]>=1){acc[k]-=1;
+  if(k==='wb')addLight('b');else if(k==='wd')addLight('d');
+  else if(k==='nb'){jpGlow.push({t:0,kind:'b'});chime()}else{jpGlow.push({t:0,kind:'d'});softLow()}}}
+ const m=midnight(t),ys=yearStart(t);
+ if(t-lastRoll>240){lastRoll=t;
+  rW.set(fmt(pop(W,t)));rJ.set(fmt(pop(J,t)));rN.set(fmt(pop(N,t)));
+  $('wB').textContent=fmt(rate.wb*(t-m));$('wD').textContent=fmt(rate.wd*(t-m));$('wY').textContent='+'+fmt(W.grow*(t-ys)/YEAR);
+  {const wp=pop(W,t),jp=pop(J,t);
+  $('wDen').textContent=(wp/AREA.w).toLocaleString('ja-JP',{minimumFractionDigits:1,maximumFractionDigits:1})+'人';$('wPer').textContent=(AREA.w*1e6/wp).toLocaleString('ja-JP',{minimumFractionDigits:1,maximumFractionDigits:1})+'㎡';
+  $('jDen').textContent=(jp/AREA.j).toLocaleString('ja-JP',{minimumFractionDigits:1,maximumFractionDigits:1})+'人';$('jPer').textContent=(AREA.j*1e6/jp).toLocaleString('ja-JP',{minimumFractionDigits:1,maximumFractionDigits:1})+'㎡';}
+  $('jY').textContent='−'+fmt(-J.grow*(t-ys)/YEAR);
+  $('nB').textContent=fmt(rate.nb*(t-m));$('nD').textContent=fmt(rate.nd*(t-m));
+ }
+ draw(t,dt/1000);requestAnimationFrame(tick);
+}
+function draw(t,dt){
+ rot+=dt*.035;
+ const g=cx.createLinearGradient(0,0,0,Ht);g.addColorStop(0,'#05080f');g.addColorStop(1,'#0b1424');cx.fillStyle=g;cx.fillRect(0,0,Wd,Ht);
+ for(const s of stars){const a=.25+.25*Math.sin(t/1700+s[3]);cx.fillStyle='rgba(200,215,255,'+a+')';cx.fillRect(s[0]*Wd,s[1]*Ht,s[2],s[2])}
+ // 大気
+ const ag=cx.createRadialGradient(GX,GY,R*.85,GX,GY,R*1.25);ag.addColorStop(0,'rgba(70,120,220,.18)');ag.addColorStop(1,'rgba(70,120,220,0)');
+ cx.fillStyle=ag;cx.beginPath();cx.arc(GX,GY,R*1.25,0,7);cx.fill();
+ const bg=cx.createRadialGradient(GX-R*.35,GY-R*.35,R*.1,GX,GY,R);bg.addColorStop(0,'#16284a');bg.addColorStop(1,'#08101f');
+ cx.fillStyle=bg;cx.beginPath();cx.arc(GX,GY,R,0,7);cx.fill();
+ const cr=Math.cos(rot),sr=Math.sin(rot),ct=Math.cos(tilt),stt=Math.sin(tilt);
+ for(const p of PTS){const x=p[0]*cr+p[2]*sr,z0=-p[0]*sr+p[2]*cr,y=p[1];const y2=y*ct-z0*stt,z2=y*stt+z0*ct;if(z2<0)continue;
+  cx.fillStyle='rgba(140,175,240,'+(.12+.38*z2)+')';cx.fillRect(GX+x*R-.8,GY-y2*R-.8,1.6,1.6)}
+ // 光
+ for(let i=lights.length-1;i>=0;i--){const L=lights[i];L.t+=dt;if(L.t>L.life){lights.splice(i,1);continue}
+  const [x,y,z]=proj(L.lat,L.lon);if(z<0)continue;const u=L.t/L.life;
+  let a,r;if(L.kind==='b'){a=Math.min(1,L.t*3)*(1-u);r=2+3*Math.min(1,L.t*2)}else{a=.7*(1-u)*(1-u);r=3*(1-u*.6)}
+  a*=.35+.65*z;const col=L.kind==='b'?'255,214,130':'140,190,255';
+  const rg=cx.createRadialGradient(x,y,0,x,y,r*3);rg.addColorStop(0,'rgba('+col+','+a+')');rg.addColorStop(1,'rgba('+col+',0)');
+  cx.fillStyle=rg;cx.beginPath();cx.arc(x,y,r*3,0,7);cx.fill()}
+ // 日本
+ const [jx,jy,jz]=proj(JPN[0],JPN[1]);
+ if(jz>0){cx.fillStyle='rgba(255,240,220,'+(.3+.4*jz)+')';cx.beginPath();cx.arc(jx,jy,2.2,0,7);cx.fill()}
+ for(let i=jpGlow.length-1;i>=0;i--){const G=jpGlow[i];G.t+=dt;const life=G.kind==='b'?7:6;if(G.t>life){jpGlow.splice(i,1);continue}
+  const u=G.t/life,vis=jz>0?.4+.6*jz:.15;
+  if(G.kind==='b'){const rr=6+R*.18*u;cx.strokeStyle='rgba(255,215,140,'+(.8*(1-u)*vis)+')';cx.lineWidth=1.5;cx.beginPath();cx.arc(jx,jy,rr,0,7);cx.stroke();
+   const rg=cx.createRadialGradient(jx,jy,0,jx,jy,18);rg.addColorStop(0,'rgba(255,230,170,'+(Math.min(1,G.t*2)*(1-u)*vis)+')');rg.addColorStop(1,'rgba(255,230,170,0)');cx.fillStyle=rg;cx.beginPath();cx.arc(jx,jy,18,0,7);cx.fill()}
+  else{const rg=cx.createRadialGradient(jx,jy,0,jx,jy,14*(1-u*.5));rg.addColorStop(0,'rgba(150,190,255,'+(.5*(1-u)*vis)+')');rg.addColorStop(1,'rgba(150,190,255,0)');cx.fillStyle=rg;cx.beginPath();cx.arc(jx,jy,14,0,7);cx.fill()}}
+}
+// 起動時にある程度の光を置く
+for(let i=0;i<20;i++){addLight('b');lights[lights.length-1].t=Math.random()*5}
+for(let i=0;i<10;i++){addLight('d');lights[lights.length-1].t=Math.random()*4}
+document.addEventListener('pointerdown',()=>{if(st.sound)ensureAC()},{passive:true});
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
