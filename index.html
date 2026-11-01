@@ -30,7 +30,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #jpbox{display:flex;flex-direction:column;gap:10px}
 .roll{display:inline-flex;overflow:hidden;height:1.1em;vertical-align:bottom}
 .dg{display:inline-block;height:1.1em;overflow:hidden}
-.dg span{display:flex;flex-direction:column;transition:transform .6s cubic-bezier(.3,.7,.2,1)}
+.dg span{display:flex;flex-direction:column;transition:transform .6s cubic-bezier(.3,.7,.2,1)}.dg span.nt{transition:none}
 .dg span i{font-style:normal;height:1.1em;display:block;text-align:center}
 .cm{display:inline-block}
 .area{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(160,190,255,.12);font-size:11.5px;color:#9fb3d8}
@@ -42,13 +42,12 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #info .in{max-width:560px;max-height:85vh;overflow:auto;background:#0e1628;border:1px solid rgba(160,190,255,.25);border-radius:16px;padding:18px 20px;font-size:13.5px;line-height:1.7;color:#d6def0}
 #info h2{font-size:16px;margin-bottom:8px;color:#fff}#info h3{font-size:14px;margin:12px 0 2px;color:#ffd98a}
 #info a{color:#9cc4ff;word-break:break-all}#info .x{margin-top:14px;width:100%;padding:8px;border-radius:10px;background:#22304e;color:#fff;border:0;font-size:14px}
-@media (orientation:landscape) and (max-height:560px){
- #ui{flex-direction:row;align-items:flex-end}
- #ui{padding-top:calc(env(safe-area-inset-top) + 14px)} #world{align-self:flex-start;margin-top:40px}
- #world .big{font-size:clamp(28px,5.6vw,56px)}
- .jp .big{font-size:clamp(18px,3.6vw,32px)}
- #jpbox{width:min(46vw,440px)}
+#world{align-self:center;text-align:center}#world .sub,#world .area{justify-content:center}
+@media (orientation:landscape){
+ #ui{padding-top:calc(env(safe-area-inset-top) + 50px)}
+ #jpbox{flex-direction:row}#jpbox .jp{flex:1;min-width:0}
 }
+@media (orientation:landscape) and (max-height:560px){#ui{padding-top:calc(env(safe-area-inset-top) + 44px);padding-bottom:calc(env(safe-area-inset-bottom) + 8px)}.card{padding:6px 12px}.sub,.area{margin-top:2px}}
 </style>
 </head>
 <body>
@@ -125,24 +124,43 @@ const pop=(o,t)=>o.base+o.grow*(t-o.t)/YEAR;
 const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const man=n=>{const a=Math.abs(n);return (n<0?'−':'+')+(a>=1e4?(Math.round(a/1e3)/10).toLocaleString('ja-JP')+'万人':Math.round(a).toLocaleString('ja-JP')+'人')};
 
-// ---- 桁ロール ----
-function Roller(el){this.el=el;this.cols=[];this.str=''}
+const $=id=>document.getElementById(id);
+// ---- 桁ロール（常に前進：9→0も上方向へ進む） ----
+function Roller(el){this.el=el;this.cols=[];this.pos=[];this.str=''}
 Roller.prototype.set=function(s){
  if(s.length!==this.str.length){
-  this.el.innerHTML='';this.cols=[];const r=document.createElement('span');r.className='roll';
+  this.el.innerHTML='';this.cols=[];this.pos=[];const r=document.createElement('span');r.className='roll';
   for(const ch of s){
    if(ch>='0'&&ch<='9'){const g=document.createElement('span');g.className='dg';const c=document.createElement('span');
-    for(let k=0;k<10;k++){const i=document.createElement('i');i.textContent=k;c.appendChild(i)}
+    for(let k=0;k<20;k++){const i=document.createElement('i');i.textContent=k%10;c.appendChild(i)}
+    c.addEventListener('transitionend',()=>{const j=this.cols.indexOf(c);if(j>=0&&this.pos[j]>=10)this._snap(j)});
     g.appendChild(c);r.appendChild(g);this.cols.push(c)}
    else{const c=document.createElement('span');c.className='cm';c.textContent=ch;r.appendChild(c);this.cols.push(null)}
+   this.pos.push(0);
   }
   this.el.appendChild(r);this.str='';
+  for(let k=0;k<s.length;k++)if(this.cols[k]){this.pos[k]=10;this._snap(k,+s[k])}
+  this.str=s;fitAll();return;
  }
- for(let k=0;k<s.length;k++){if(s[k]!==this.str[k]&&this.cols[k])this.cols[k].style.transform='translateY(-'+(+s[k]*1.1)+'em)'}
+ for(let k=0;k<s.length;k++){
+  const c=this.cols[k];if(!c||s[k]===this.str[k])continue;
+  if(this.pos[k]>=10)this._snap(k);
+  const d=+s[k];const t=d>this.pos[k]?d:d+10; // 小さくなる時は次周の同じ数字へ前進
+  this.pos[k]=t;c.style.transform='translateY(-'+(t*1.1)+'em)';
+ }
  this.str=s;
 };
+Roller.prototype._snap=function(k,d){const c=this.cols[k];const p=d!==undefined?d:this.pos[k]-10;this.pos[k]=p;
+ c.classList.add('nt');c.style.transform='translateY(-'+(p*1.1)+'em)';void c.offsetHeight;c.classList.remove('nt')};
+// ---- 画面幅に合わせて文字サイズを決める ----
+function fitEl(el,w,h){if(!el.firstChild)return;el.style.fontSize='100px';const r=el.firstChild.getBoundingClientRect();if(!r.width)return;
+ el.style.fontSize=Math.max(14,Math.min(100*w/r.width,100*h/r.height))+'px'}
+function fitAll(){const W=innerWidth,H=innerHeight,land=W>H;
+ fitEl($('wPop'),W*0.8,H*(land?0.24:0.13));
+ const jw=land?W*0.36:W*0.62,jh=H*(land?0.13:0.075);
+ fitEl($('jPop'),jw,jh);fitEl($('nPop'),jw,jh)}
+addEventListener('resize',()=>setTimeout(fitAll,50));
 const rW=new Roller(document.getElementById('wPop')),rJ=new Roller(document.getElementById('jPop')),rN=new Roller(document.getElementById('nPop'));
-const $=id=>document.getElementById(id);
 $('jR').textContent=man(J.grow);$('nR').textContent=man(N.grow);
 
 // ---- 音 ----
